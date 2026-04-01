@@ -18,7 +18,7 @@ resource "aws_iam_role" "producer_role" {
 
 resource "aws_iam_role_policy" "producer" {
   name = "kinesis-put"
-  role = aws_iam_role.producer.id
+  role = aws_iam_role.producer_role.id
 
   policy = jsonencode({
     Version = "2012-10-17"

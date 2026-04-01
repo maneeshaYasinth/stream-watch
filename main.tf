@@ -31,7 +31,7 @@ module "iam" {
   source = "./modules/iam"
   project = var.project
   environment = var.environment
-  kinesis_stream_arn = module.kinesis.kinesis_stream_arn
+  kinesis_stream_arn = module.kinesis.stream_arn
   raw_bucket_arn = module.s3.raw_bucket_arn
   processed_bucket_arn = module.s3.processed_bucket_arn
 }

@@ -1,5 +1,5 @@
 variable "project" {
-  type = bool
+  type = string
 }
 
 variable "environment" {
