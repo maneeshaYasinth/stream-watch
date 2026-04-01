@@ -19,7 +19,7 @@ FastF1 (Python producer)
     │
     │  JSON telemetry records (per driver, per tick)
     ▼
-Kinesis Data Streams          ← managed real-time stream (2 shards)
+SQS queue                     ← managed message queue (AWS Free Tier eligible)
     │
     │  triggers on new records
     ▼
@@ -46,7 +46,7 @@ EventBridge                   ← fastest lap event rule
 SNS → email alert             ← "VER set fastest lap — 1:31.447"
 ```
 
-CloudWatch dashboard tracks Lambda invocations, Kinesis iterator age, S3 PUT count, and error rates. X-Ray provides distributed traces across the full pipeline.
+CloudWatch dashboard tracks Lambda invocations, SQS queue depth/message age, S3 PUT count, and error rates. X-Ray provides distributed traces across the full pipeline.
 
 ---
 
@@ -54,7 +54,7 @@ CloudWatch dashboard tracks Lambda invocations, Kinesis iterator age, S3 PUT cou
 
 | Service | Role |
 |---|---|
-| Kinesis Data Streams | Real-time telemetry ingestion |
+| SQS | Real-time telemetry ingestion buffer |
 | Lambda | Serverless stream processing |
 | S3 | Data lake (raw + processed) |
 | Glue Data Catalog | Schema management + partition crawling |
@@ -78,14 +78,14 @@ stream-watch/
 ├── outputs.tf
 ├── terraform.tfvars
 ├── modules/
-│   ├── kinesis/          # stream config
+│   ├── sqs/              # queue config
 │   ├── s3/               # raw + processed buckets, lifecycle rules
 │   ├── iam/              # producer + consumer roles
 │   ├── lambda/           # consumer function + X-Ray + event source mapping
 │   ├── glue/             # catalog database + crawler
 │   └── athena/           # workgroup + named queries
 └── producer/
-    ├── producer.py       # FastF1 → Kinesis replay script
+    ├── producer.py       # FastF1 → SQS replay script
     └── requirements.txt
 ```
 
@@ -113,7 +113,7 @@ terraform init
 terraform apply
 ```
 
-Note the output values — you'll need `kinesis_stream_name` for the producer.
+Note the output values — you'll need `queue_url` for the producer.
 
 ### 3. Install producer dependencies
 
@@ -176,13 +176,13 @@ To avoid ongoing costs, destroy the stream-processing resources after a demo run
 terraform destroy
 ```
 
-S3 and Glue catalog can be kept for continued Athena querying without incurring Lambda/Kinesis costs.
+S3 and Glue catalog can be kept for continued Athena querying without incurring Lambda/SQS costs.
 
 ---
 
 ## Tech stack
 
-`Python` `Terraform` `AWS Kinesis` `AWS Lambda` `AWS S3` `AWS Glue` `AWS Athena` `AWS EventBridge` `AWS SNS` `AWS X-Ray` `FastF1`
+`Python` `Terraform` `AWS SQS` `AWS Lambda` `AWS S3` `AWS Glue` `AWS Athena` `AWS EventBridge` `AWS SNS` `AWS X-Ray` `FastF1`
 
 ---
 
