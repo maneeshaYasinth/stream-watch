@@ -1,14 +1,14 @@
 variable "region" {
-  type = string
+  type    = string
   default = "ap-southeast-1"
 }
 
-variable "environment" {
-  type = string
-  default = "dev"
+variable "project" {
+  type    = string
+  default = "stream-watch"
 }
 
-variable "project" {
-  type = string
-  default = "stream-watch"
+variable "environment" {
+  type    = string
+  default = "dev"
 }

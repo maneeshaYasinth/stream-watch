@@ -1,32 +1,27 @@
-#---------------producer role------------------
-resource "aws_iam_role" "producer_role" {
-  name = "${var.project}-${var.environment}-producer-role"
+resource "aws_iam_role" "producer" {
+  name = "${var.project}-producer-${var.environment}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-      }
-    ]
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
   })
 }
 
 resource "aws_iam_role_policy" "producer" {
-  name = "kinesis-put"
-  role = aws_iam_role.producer_role.id
+  name = "sqs-send"
+  role = aws_iam_role.producer.id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
         Effect   = "Allow"
-        Action   = ["kinesis:PutRecord", "kinesis:PutRecords", "kinesis:DescribeStream"]
-        Resource = var.kinesis_stream_arn
+        Action   = ["sqs:SendMessage", "sqs:GetQueueAttributes", "sqs:GetQueueUrl"]
+        Resource = var.queue_arn
       },
       {
         Effect   = "Allow"
@@ -37,7 +32,6 @@ resource "aws_iam_role_policy" "producer" {
   })
 }
 
-# ------------- Consumer role ------------------------
 resource "aws_iam_role" "consumer" {
   name = "${var.project}-consumer-${var.environment}"
 
@@ -52,22 +46,16 @@ resource "aws_iam_role" "consumer" {
 }
 
 resource "aws_iam_role_policy" "consumer" {
-  name = "kinesis-consume-s3-write"
+  name = "sqs-consume-s3-write"
   role = aws_iam_role.consumer.id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
-        Action = [
-          "kinesis:GetRecords",
-          "kinesis:GetShardIterator",
-          "kinesis:DescribeStream",
-          "kinesis:ListStreams",
-          "kinesis:ListShards"
-        ]
-        Resource = var.kinesis_stream_arn
+        Effect   = "Allow"
+        Action   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
+        Resource = var.queue_arn
       },
       {
         Effect   = "Allow"

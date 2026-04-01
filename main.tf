@@ -16,22 +16,22 @@ provider "aws" {
 }
 
 module "s3" {
-  source = "./modules/s3"
-  project = var.project
+  source      = "./modules/s3"
+  project     = var.project
   environment = var.environment
 }
 
-module "kinesis" {
-  source = "./modules/kinesis"
-  project = var.project
+module "sqs" {
+  source      = "./modules/sqs"
+  project     = var.project
   environment = var.environment
 }
 
 module "iam" {
-  source = "./modules/iam"
-  project = var.project
-  environment = var.environment
-  kinesis_stream_arn = module.kinesis.stream_arn
-  raw_bucket_arn = module.s3.raw_bucket_arn
+  source               = "./modules/iam"
+  project              = var.project
+  environment          = var.environment
+  queue_arn            = module.sqs.queue_arn
+  raw_bucket_arn       = module.s3.raw_bucket_arn
   processed_bucket_arn = module.s3.processed_bucket_arn
 }

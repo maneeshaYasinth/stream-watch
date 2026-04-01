@@ -1,5 +1,9 @@
-output "kinesis_stream_name" {
-  value = module.kinesis.stream_name
+output "queue_name" {
+  value = module.sqs.queue_name
+}
+
+output "queue_url" {
+  value = module.sqs.queue_url
 }
 
 output "raw_bucket_name" {
