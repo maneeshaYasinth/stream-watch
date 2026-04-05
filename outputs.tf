@@ -25,3 +25,15 @@ output "consumer_role_arn" {
 output "lambda_function_name" {
   value = module.lambda.function_name
 }
+
+output "glue_database_name" {
+  value = module.glue.database_name
+}
+
+output "glue_crawler_name" {
+  value = module.glue.crawler_name
+}
+
+output "athena_workgroup" {
+  value = module.athena.workgroup_name
+}

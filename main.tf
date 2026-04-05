@@ -45,3 +45,17 @@ module "lambda" {
   processed_bucket_name = module.s3.processed_bucket_name
   raw_bucket_name       = module.s3.raw_bucket_name
 }
+
+module "glue" {
+  source                = "./modules/glue"
+  project               = var.project
+  environment           = var.environment
+  processed_bucket_name = module.s3.processed_bucket_name
+  processed_bucket_arn  = module.s3.processed_bucket_arn
+}
+
+module "athena" {
+  source      = "./modules/athena"
+  project     = var.project
+  environment = var.environment
+}
