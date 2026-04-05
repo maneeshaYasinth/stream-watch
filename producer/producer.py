@@ -35,7 +35,7 @@ def load_session(year: int, gp: str, session_type: str):
     return session
 
 
-def extract_records(session):
+def extract_records(session, gp: str):
     """
     FastF1 returns per-driver telemetry as a pandas DataFrame.
     We flatten everything into a list of plain dicts.
@@ -57,6 +57,7 @@ def extract_records(session):
                 "driver_number": drv,
                 "driver_code":   info.get("Abbreviation", drv),
                 "team":          info.get("TeamName", "Unknown"),
+                "gp":            gp,
                 "timestamp":     row["Date"].isoformat(),
                 "speed":         float(row.get("Speed",    0)),
                 "throttle":      float(row.get("Throttle", 0)),
@@ -133,7 +134,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     session   = load_session(args.year, args.gp, args.session)
-    records   = extract_records(session)
+    records   = extract_records(session, args.gp)
 
     if args.dry_run:
         send_to_sqs(records, None, args.region, dry_run=True)
