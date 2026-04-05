@@ -35,3 +35,13 @@ module "iam" {
   raw_bucket_arn       = module.s3.raw_bucket_arn
   processed_bucket_arn = module.s3.processed_bucket_arn
 }
+
+module "lambda" {
+  source                = "./modules/lambda"
+  project               = var.project
+  environment           = var.environment
+  consumer_role_arn     = module.iam.consumer_role_arn
+  queue_arn             = module.sqs.queue_arn
+  processed_bucket_name = module.s3.processed_bucket_name
+  raw_bucket_name       = module.s3.raw_bucket_name
+}

@@ -35,6 +35,38 @@ override.tf.json
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+.venv/
+venv/
+env/
+
+# Build/package artifacts
+dist/
+build/
+*.egg-info/
+*.zip
+
+# Local logs
+*.log
+
+# Project local/generated artifacts
 f1_cache/
 producer/.venv/
 *.tfvars.backup
+modules/lambda/function/package/
+modules/lambda/lambda.zip
+.venv312

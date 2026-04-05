@@ -71,6 +71,11 @@ resource "aws_iam_role_policy" "consumer" {
         Effect   = "Allow"
         Action   = ["xray:PutTraceSegments", "xray:PutTelemetryRecords"]
         Resource = "*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
+        Resource = "${var.raw_bucket_arn}/lambda/*"
       }
     ]
   })

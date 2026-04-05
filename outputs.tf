@@ -21,3 +21,7 @@ output "producer_role_arn" {
 output "consumer_role_arn" {
   value = module.iam.consumer_role_arn
 }
+
+output "lambda_function_name" {
+  value = module.lambda.function_name
+}
