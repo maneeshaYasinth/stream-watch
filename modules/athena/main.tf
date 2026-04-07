@@ -15,7 +15,7 @@ resource "aws_s3_bucket" "results" {
 
 resource "aws_athena_workgroup" "telemetry" {
   name = "${var.project}-athena-telemetry-${var.environment}"
-
+  force_destroy = true
   configuration {
     result_configuration {
       output_location = "s3://${aws_s3_bucket.results.bucket}/"
