@@ -8,8 +8,6 @@
 
 stream-watch replays historical F1 race telemetry (speed, throttle, brake, DRS, GPS position) as a live data stream into AWS, processes it serverlessly, stores it in a partitioned data lake, and runs SQL analytics on it — all without managing a single server.
 
-When a new fastest lap is detected mid-race, an alert fires automatically via email.
-
 ---
 
 ## Architecture
@@ -19,22 +17,19 @@ FastF1 (Python producer)
     │
     │  JSON telemetry records (per driver, per tick)
     ▼
-SQS queue                     ← managed message queue (AWS Free Tier eligible)
+SQS Queue                     ← managed message queue (free tier eligible)
     │
-    │  triggers on new records
+    │  auto-triggers on new records
     ▼
-Lambda (consumer)             ← enriches + converts to Parquet
+Lambda (consumer)             ← enriches records, writes to S3
     │                            traced with AWS X-Ray
-    ├──► S3 raw/               ← original JSON (audit trail)
-    │
-    └──► S3 processed/         ← partitioned Parquet
+    └──► S3 processed/         ← partitioned JSON
               year=2024/
               race=Bahrain/
               driver=VER/
-              lap=12/
     │
     ▼
-Glue Data Catalog             ← schema registry, auto-crawls S3
+Glue Data Catalog             ← schema registry
     │
     ▼
 Athena                        ← serverless SQL on S3
@@ -43,10 +38,8 @@ Athena                        ← serverless SQL on S3
 EventBridge                   ← fastest lap event rule
     │
     ▼
-SNS → email alert             ← "VER set fastest lap — 1:31.447"
+SNS → email alert
 ```
-
-CloudWatch dashboard tracks Lambda invocations, SQS queue depth/message age, S3 PUT count, and error rates. X-Ray provides distributed traces across the full pipeline.
 
 ---
 
@@ -54,18 +47,17 @@ CloudWatch dashboard tracks Lambda invocations, SQS queue depth/message age, S3 
 
 | Service | Role |
 |---|---|
-| SQS | Real-time telemetry ingestion buffer |
-| Lambda | Serverless stream processing |
-| S3 | Data lake (raw + processed) |
-| Glue Data Catalog | Schema management + partition crawling |
-| Athena | Serverless SQL analytics |
+| SQS | Telemetry ingestion buffer (+ DLQ for failed messages) |
+| Lambda | Serverless stream processing (arm64 / Graviton2) |
+| S3 | Data lake — raw + processed buckets with lifecycle rules |
+| Glue Data Catalog | Schema management + partition registry |
+| Athena | Serverless SQL analytics on S3 |
 | EventBridge | Event-driven fastest lap detection |
 | SNS | Email alerting |
-| CloudWatch | Metrics + dashboards |
-| X-Ray | Distributed tracing |
-| IAM | Least-privilege roles for producer + consumer |
+| X-Ray | Distributed tracing across the pipeline |
+| IAM | Least-privilege roles for producer and consumer |
 
-All infrastructure is provisioned via **modular Terraform** — no ClickOps.
+All infrastructure provisioned with **modular Terraform** — no ClickOps.
 
 ---
 
@@ -73,19 +65,21 @@ All infrastructure is provisioned via **modular Terraform** — no ClickOps.
 
 ```
 stream-watch/
-├── main.tf               # root module — wires everything together
+├── main.tf
 ├── variables.tf
 ├── outputs.tf
 ├── terraform.tfvars
+├── run.sh                    # one-command setup after destroy
 ├── modules/
-│   ├── sqs/              # queue config
-│   ├── s3/               # raw + processed buckets, lifecycle rules
-│   ├── iam/              # producer + consumer roles
-│   ├── lambda/           # consumer function + X-Ray + event source mapping
-│   ├── glue/             # catalog database + crawler
-│   └── athena/           # workgroup + named queries
+│   ├── sqs/                  # queue + DLQ
+│   ├── s3/                   # raw + processed buckets, lifecycle rules
+│   ├── iam/                  # producer + consumer roles
+│   ├── lambda/               # consumer function, X-Ray, SQS event source
+│   ├── glue/                 # catalog database + crawler
+│   ├── athena/               # workgroup + results bucket
+│   └── eventbridge/          # fastest lap rule + SNS topic
 └── producer/
-    ├── producer.py       # FastF1 → SQS replay script
+    ├── producer.py           # FastF1 → SQS replay script
     └── requirements.txt
 ```
 
@@ -97,7 +91,7 @@ stream-watch/
 
 - AWS CLI configured (`aws configure`)
 - Terraform >= 1.6
-- Python >= 3.10
+- Python 3.12
 
 ### 1. Clone and init
 
@@ -107,19 +101,19 @@ cd stream-watch
 terraform init
 ```
 
-### 2. Deploy infrastructure
+### 2. Deploy everything
 
 ```bash
-terraform apply
+bash run.sh
 ```
 
-Note the output values — you'll need `queue_url` for the producer.
+This handles the full deployment in the correct order — base infra, Lambda zip upload, full apply.
 
 ### 3. Install producer dependencies
 
 ```bash
 cd producer
-python -m venv .venv && source .venv/bin/activate
+python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
@@ -135,48 +129,93 @@ python producer.py --year 2024 --gp Bahrain --dry-run
 python producer.py --year 2024 --gp Bahrain
 ```
 
+### 6. Register schema and run queries
+
+```bash
+# Create Athena table
+aws athena start-query-execution \
+  --work-group $(terraform output -raw athena_workgroup) \
+  --query-execution-context Database=$(terraform output -raw glue_database_name) \
+  --query-string "CREATE EXTERNAL TABLE IF NOT EXISTS telemetry (
+    driver_number STRING, driver_code STRING, team STRING, gp STRING,
+    timestamp STRING, speed DOUBLE, throttle DOUBLE, brake BOOLEAN,
+    gear INT, rpm DOUBLE, drs INT, x DOUBLE, y DOUBLE,
+    ingested_at STRING, drs_active BOOLEAN, full_throttle BOOLEAN, processed_at STRING
+  )
+  PARTITIONED BY (year STRING, race STRING, driver STRING)
+  ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'
+  LOCATION 's3://$(terraform output -raw processed_bucket_name)/telemetry/'
+  TBLPROPERTIES ('classification'='json')" \
+  --output text --query 'QueryExecutionId'
+
+# Load partitions
+aws athena start-query-execution \
+  --work-group $(terraform output -raw athena_workgroup) \
+  --query-execution-context Database=$(terraform output -raw glue_database_name) \
+  --query-string "MSCK REPAIR TABLE telemetry" \
+  --output text --query 'QueryExecutionId'
+```
+
 ---
 
 ## Sample Athena queries
 
-**Average speed by driver through sector 2 — 2024 Bahrain GP**
+**Record count by driver**
+```sql
+SELECT driver_code, COUNT(*) as records
+FROM telemetry
+GROUP BY driver_code
+ORDER BY records DESC;
+```
+
+**Average speed by driver**
 ```sql
 SELECT driver_code, ROUND(AVG(speed), 2) AS avg_speed_kph
 FROM telemetry
-WHERE year = '2024' AND race = 'Bahrain' AND sector = 2
 GROUP BY driver_code
 ORDER BY avg_speed_kph DESC;
 ```
 
-**Fastest lap per driver**
+**DRS activation count by driver**
 ```sql
-SELECT driver_code, MIN(lap_time_seconds) AS fastest_lap
-FROM lap_summary
-WHERE year = '2024' AND race = 'Bahrain'
+SELECT driver_code,
+  SUM(CASE WHEN drs_active THEN 1 ELSE 0 END) AS drs_activations
+FROM telemetry
 GROUP BY driver_code
-ORDER BY fastest_lap ASC;
+ORDER BY drs_activations DESC;
 ```
 
-**Throttle vs brake by lap (VER)**
+**Full throttle percentage by driver**
 ```sql
-SELECT lap, ROUND(AVG(throttle), 1) AS avg_throttle, SUM(CAST(brake AS INT)) AS brake_events
+SELECT driver_code,
+  ROUND(100.0 * SUM(CASE WHEN full_throttle THEN 1 ELSE 0 END) / COUNT(*), 1) AS full_throttle_pct
 FROM telemetry
-WHERE year = '2024' AND race = 'Bahrain' AND driver_code = 'VER'
-GROUP BY lap
-ORDER BY lap;
+GROUP BY driver_code
+ORDER BY full_throttle_pct DESC;
 ```
 
 ---
 
 ## Teardown
 
-To avoid ongoing costs, destroy the stream-processing resources after a demo run:
-
 ```bash
-terraform destroy
+# Delete Athena workgroup first (has query history)
+aws athena delete-work-group \
+  --work-group $(terraform output -raw athena_workgroup) \
+  --recursive-delete-option
+
+terraform destroy --auto-approve
 ```
 
-S3 and Glue catalog can be kept for continued Athena querying without incurring Lambda/SQS costs.
+---
+
+## Design notes
+
+**SQS over Kinesis** — Kinesis is not free tier eligible. SQS provides equivalent functionality for dev/demo with 1M free requests/month. The architecture and resume reference Kinesis as the production-grade design.
+
+**JSON over Parquet** — pyarrow compiled on macOS ARM64 is incompatible with Lambda's Linux ARM64 runtime. JSON is used as the storage format; Athena queries it natively via JsonSerDe. Parquet can be introduced later by building the Lambda package inside a Docker container matching the Lambda runtime.
+
+**Lambda on arm64** — Graviton2 is ~20% cheaper and faster than x86 for this workload, and matches the local M-series build environment.
 
 ---
 
