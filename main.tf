@@ -59,3 +59,10 @@ module "athena" {
   project     = var.project
   environment = var.environment
 }
+
+module "eventbridge" {
+  source = "./modules/eventbridge"
+  project     = var.project
+  environment = var.environment
+  alert_email = var.alert_email
+}

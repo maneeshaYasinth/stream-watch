@@ -37,3 +37,7 @@ output "glue_crawler_name" {
 output "athena_workgroup" {
   value = module.athena.workgroup_name
 }
+
+output "sns_topic_arn" {
+  value = module.eventbridge.sns_topic_arn
+}
