@@ -76,6 +76,11 @@ resource "aws_iam_role_policy" "consumer" {
         Effect   = "Allow"
         Action   = ["s3:GetObject"]
         Resource = "${var.raw_bucket_arn}/lambda/*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["events:PutEvents"]
+        Resource = "*"
       }
     ]
   })

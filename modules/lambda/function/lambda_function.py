@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 S3_BUCKET = os.environ["PROCESSED_BUCKET"]
 REGION    = os.environ.get("AWS_REGION", "ap-southeast-1")
 s3        = boto3.client("s3", region_name=REGION)
+events_client = boto3.client("events", region_name=REGION)
 
 
 def enrich(record: dict) -> dict:
@@ -60,3 +61,18 @@ def lambda_handler(event, context):
 
     if failed_ids:
         return {"batchItemFailures": failed_ids}
+
+def publish_fastest_lap(record: dict):
+    events_client.put_events(
+        Entries=[{
+            "Source":       "stream-watch.telemetry",
+            "DetailType":   "FastestLap",
+            "Detail":       json.dumps({
+                "driver":    record.get("driver_code"),
+                "team":      record.get("team"),
+                "speed":     record.get("speed"),
+                "gp":        record.get("gp"),
+                "timestamp": record.get("timestamp"),
+            }),
+        }]
+    )
