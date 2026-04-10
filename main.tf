@@ -66,3 +66,14 @@ module "eventbridge" {
   environment = var.environment
   alert_email = var.alert_email
 }
+
+module "cloudwatch" {
+  source                = "./modules/cloudwatch"
+  project               = var.project
+  environment           = var.environment
+  aws_region            = var.region
+  lambda_function_name  = module.lambda.function_name
+  queue_name            = module.sqs.queue_name
+  dlq_name              = "${var.project}-telemetry-dlq-${var.environment}"
+  processed_bucket_name = module.s3.processed_bucket_name
+}
