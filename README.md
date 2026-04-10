@@ -12,36 +12,7 @@ stream-watch replays historical F1 race telemetry (speed, throttle, brake, DRS, 
 
 ## Architecture
 
-```
-FastF1 (Python producer)
-    │
-    │  JSON telemetry records (per driver, per tick)
-    ▼
-SQS Queue                     ← managed message queue (free tier eligible)
-    │
-    │  auto-triggers on new records
-    ▼
-Lambda (consumer)             ← enriches records, writes to S3
-    │                            traced with AWS X-Ray
-    └──► S3 processed/         ← partitioned JSON
-              year=2024/
-              race=Bahrain/
-              driver=VER/
-    │
-    ▼
-Glue Data Catalog             ← schema registry
-    │
-    ▼
-Athena                        ← serverless SQL on S3
-    │
-    ▼
-EventBridge                   ← fastest lap event rule
-    │
-    ▼
-SNS → email alert
-```
-
----
+![stream-watch pipeline](docs/architecture.png)
 
 ## AWS services used
 
